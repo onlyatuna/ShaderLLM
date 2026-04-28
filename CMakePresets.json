@@ -1,0 +1,27 @@
+{
+  "version": 3,
+  "configurePresets": [
+    {
+      "name": "default",
+      "displayName": "RTX 5060 Ti Standard Build",
+      "description": "Using Ninja generator with hardcoded paths for VS 2026 and CUDA 13.2",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_CXX_COMPILER": "C:/Program Files/Microsoft Visual Studio/18/Community/VC/Tools/MSVC/14.44.35207/bin/Hostx64/x64/cl.exe",
+        "CMAKE_CUDA_COMPILER": "C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v13.2/bin/nvcc.exe",
+        "Vulkan_INCLUDE_DIR": "C:/VulkanSDK/1.4.341.1/Include",
+        "Vulkan_LIBRARY": "C:/VulkanSDK/1.4.341.1/Lib/vulkan-1.lib",
+        "LEVEL_ZERO_INCLUDE_DIR": "C:/Program Files/LevelZeroSDK/1.24.0/include",
+        "LEVEL_ZERO_LIBRARY": "C:/Program Files/LevelZeroSDK/1.24.0/lib/ze_loader.lib"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "default",
+      "configurePreset": "default"
+    }
+  ]
+}

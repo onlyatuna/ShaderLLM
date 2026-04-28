@@ -1,0 +1,25 @@
+#version 450
+#extension GL_EXT_shader_explicit_arithmetic_types_float16 : enable
+#extension GL_KHR_cooperative_matrix : enable
+#extension GL_EXT_control_flow_attributes : enable
+#extension GL_KHR_memory_scope_semantics : enable
+
+layout(local_size_x = 32, local_size_y = 1, local_size_z = 1) in; 
+
+layout(std430, binding = 0) readonly buffer InputA { float16_t data[]; } bufA;
+layout(std430, binding = 1) readonly buffer InputB { float16_t data[]; } bufB;
+layout(std430, binding = 2) writeonly buffer OutputC { float16_t data[]; } bufC;
+
+void main() {
+    coopmat<float16_t, gl_ScopeSubgroup, 16, 16, gl_MatrixUseA> matA;
+    coopmat<float16_t, gl_ScopeSubgroup, 16, 16, gl_MatrixUseB> matB;
+    coopmat<float16_t, gl_ScopeSubgroup, 16, 16, gl_MatrixUseAccumulator> matC = 
+        coopmat<float16_t, gl_ScopeSubgroup, 16, 16, gl_MatrixUseAccumulator>(float16_t(0.0));
+
+    coopMatLoad(matA, bufA.data, 0, 16, 0);
+    coopMatLoad(matB, bufB.data, 0, 16, 0);
+
+    matC = coopMatMulAdd(matA, matB, matC);
+
+    coopMatStore(matC, bufC.data, 0, 16, 0);
+}

@@ -1,0 +1,15 @@
+#version 450
+#extension GL_EXT_shader_explicit_arithmetic_types_float16 : enable
+
+layout(local_size_x = 32, local_size_y = 1) in;
+
+layout(std430, binding = 0) readonly buffer InputA { float16_t data[]; } bufS;
+layout(std430, binding = 1) writeonly buffer OutputC { float16_t data[]; } bufOut;
+
+void main() {
+    uint idx = gl_GlobalInvocationID.x;
+    if (idx < 1024) { // 只測試前 1024 個元素
+        // 核心邏輯：每一代加 1.0
+        bufOut.data[idx] = bufS.data[idx] + float16_t(1.0);
+    }
+}

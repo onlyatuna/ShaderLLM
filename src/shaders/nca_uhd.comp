@@ -1,0 +1,91 @@
+#version 450
+#extension GL_EXT_shader_explicit_arithmetic_types_float16 : enable
+
+// CHIMERA-V M7.6: UHD-Pulse Final (Stable Full-Scale NCA)
+layout(local_size_x = 16, local_size_y = 16) in; 
+
+layout(std430, binding = 0) readonly buffer InputA { f16vec4 data[]; } bufS;
+layout(std430, binding = 1) writeonly buffer OutputC { float16_t data[]; } bufOut;
+layout(std430, binding = 2) readonly buffer Weights { f16vec4 kernel[]; } bufW;
+
+layout(push_constant) uniform Config {
+    uint width, height, channels;
+    float dt;
+    uint row_offset; 
+} config;
+
+#define TILE_K 32
+#define TILE_M 32
+#define TILE_N 32
+
+shared float16_t s_A[TILE_M][TILE_K];
+shared float16_t s_B[TILE_K][TILE_N];
+
+void main() {
+    uint num_pixels = config.width * config.height;
+    uint lx = gl_LocalInvocationID.x;
+    uint ly = gl_LocalInvocationID.y;
+    uint tid = ly * 16 + lx;
+    
+    uint block_m = gl_WorkGroupID.y * TILE_M + config.row_offset;
+    uint block_n = gl_WorkGroupID.x * TILE_N;
+
+    float sum[2][2] = {{0,0}, {0,0}};
+
+    for (uint k = 0; k < config.channels; k += TILE_K) {
+        // --- 協作搬運 s_A (Weights: [Channel_M][Channel_K]) ---
+        {
+            uint row = tid / 8; // 0..31
+            uint col_v = tid % 8; // 0..7 (each is 4 elements)
+            uint g_idx = ((block_m + row) * (config.channels / 4)) + (k / 4 + col_v);
+            if (block_m + row < config.channels && (k + col_v * 4) < config.channels) {
+                f16vec4 v = bufW.kernel[g_idx];
+                s_A[row][col_v * 4 + 0] = v.x; s_A[row][col_v * 4 + 1] = v.y;
+                s_A[row][col_v * 4 + 2] = v.z; s_A[row][col_v * 4 + 3] = v.w;
+            } else {
+                s_A[row][col_v * 4 + 0] = float16_t(0); s_A[row][col_v * 4 + 1] = float16_t(0);
+                s_A[row][col_v * 4 + 2] = float16_t(0); s_A[row][col_v * 4 + 3] = float16_t(0);
+            }
+        }
+
+        // --- 協作搬運 s_B (States: [Pixel_N][Channel_K]) ---
+        {
+            uint row = tid / 8; // 0..31
+            uint col_v = tid % 8; 
+            uint g_idx = ((block_n + row) * (config.channels / 4)) + (k / 4 + col_v);
+            if (block_n + row < num_pixels && (k + col_v * 4) < config.channels) {
+                f16vec4 v = bufS.data[g_idx];
+                s_B[col_v * 4 + 0][row] = v.x; s_B[col_v * 4 + 1][row] = v.y;
+                s_B[col_v * 4 + 2][row] = v.z; s_B[col_v * 4 + 3][row] = v.w;
+            } else {
+                s_B[col_v * 4 + 0][row] = float16_t(0); s_B[col_v * 4 + 1][row] = float16_t(0);
+                s_B[col_v * 4 + 2][row] = float16_t(0); s_B[col_v * 4 + 3][row] = float16_t(0);
+            }
+        }
+
+        barrier();
+
+        // --- 2x2 Thread Tiling 計算 ---
+        for (uint ki = 0; ki < TILE_K; ki++) {
+            float16_t b0 = s_B[ki][lx * 2 + 0];
+            float16_t b1 = s_B[ki][lx * 2 + 1];
+            sum[0][0] += float(s_A[ly * 2 + 0][ki]) * float(b0);
+            sum[1][0] += float(s_A[ly * 2 + 1][ki]) * float(b0);
+            sum[0][1] += float(s_A[ly * 2 + 0][ki]) * float(b1);
+            sum[1][1] += float(s_A[ly * 2 + 1][ki]) * float(b1);
+        }
+
+        barrier();
+    }
+
+    // --- 寫回結果 (帶 Tanh) ---
+    for (int i = 0; i < 2; i++) {
+        for (int j = 0; j < 2; j++) {
+            uint rm = block_m + ly * 2 + i;
+            uint rn = block_n + lx * 2 + j;
+            if (rm < config.channels && rn < num_pixels) {
+                bufOut.data[rn * config.channels + rm] = float16_t(tanh(sum[i][j]));
+            }
+        }
+    }
+}

@@ -1,0 +1,46 @@
+# Build and Compilation Artifacts
+build/
+backup/
+temp_slang_research/
+*.exe
+*.obj
+*.pdb
+*.spv
+*.cache
+*.lib
+*.dll
+*.ilk
+*.exp
+
+# Python Virtual Environments & Caches
+venv_chimera/
+venv_chimera_linux_backup/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Datasets and Features
+data/
+raw/
+
+# Model Weights and Large Binary Files
+weights/
+*.bin
+*.pt
+
+# IDEs and Editors
+.vs/
+.vscode/
+.idea/
+*.suo
+*.user
+
+# Logs and Tool Outputs
+.gemini/
+logs/
+*.log
+
+# Local Docs and Plans
+wiki/
+plans/

@@ -1,0 +1,156 @@
+#version 450
+#extension GL_EXT_shader_explicit_arithmetic_types_float16 : enable
+#extension GL_KHR_cooperative_matrix : enable
+#extension GL_KHR_memory_scope_semantics : enable
+#extension GL_EXT_control_flow_attributes : enable
+
+layout(local_size_x = 32, local_size_y = 4, local_size_z = 1) in;
+
+layout(std430, binding = 0) readonly buffer InputA { f16vec4 data[]; } bufS;
+layout(std430, binding = 1) writeonly buffer OutputC { float16_t data[]; } bufOut;
+layout(std430, binding = 2) readonly buffer Weights { f16vec4 kernel[]; } bufW;
+layout(std430, binding = 3) readonly buffer PromptField { float16_t data[]; } bufPrompt;
+
+layout(push_constant) uniform Config {
+    uint width, height, channels;
+    float dt;
+    uint row_offset;
+} config;
+
+#define BLOCK_M 64
+#define BLOCK_N 64
+#define BLOCK_K 32
+
+#define STRIDE_A (BLOCK_K + 8) 
+#define STRIDE_B (BLOCK_N + 8) 
+
+shared float16_t s_A[BLOCK_M * STRIDE_A]; 
+shared float16_t s_B[BLOCK_K * STRIDE_B]; 
+shared float s_C[1024]; 
+
+void main() {
+    uint num_pixels = config.width * config.height;
+    uint block_n_start = gl_WorkGroupID.x * BLOCK_N;
+    uint block_m_start = gl_WorkGroupID.y * BLOCK_M + config.row_offset;
+
+    if (block_n_start >= num_pixels || block_m_start >= config.channels) return;
+
+    uint warp_idx = gl_LocalInvocationID.y;
+    uint lane = gl_LocalInvocationID.x;
+    uint tid = warp_idx * 32 + lane;
+    uint warp_m = (warp_idx / 2) * 32;
+    uint warp_n = (warp_idx % 2) * 32;
+
+    coopmat<float, gl_ScopeSubgroup, 16, 16, 2> matC00 = coopmat<float, gl_ScopeSubgroup, 16, 16, 2>(0.0);
+    coopmat<float, gl_ScopeSubgroup, 16, 16, 2> matC01 = coopmat<float, gl_ScopeSubgroup, 16, 16, 2>(0.0);
+    coopmat<float, gl_ScopeSubgroup, 16, 16, 2> matC10 = coopmat<float, gl_ScopeSubgroup, 16, 16, 2>(0.0);
+    coopmat<float, gl_ScopeSubgroup, 16, 16, 2> matC11 = coopmat<float, gl_ScopeSubgroup, 16, 16, 2>(0.0);
+
+    uint total_k = config.channels * 9;
+    
+    for (uint k = 0; k < total_k; k += BLOCK_K) {
+        [[unroll]] for (uint i = tid; i < BLOCK_M * STRIDE_A; i += 128) s_A[i] = float16_t(0);
+        [[unroll]] for (uint i = tid; i < BLOCK_K * STRIDE_B; i += 128) s_B[i] = float16_t(0);
+        barrier();
+
+        [[unroll]]
+        for (uint i = 0; i < 4; i++) {
+            uint vidx = i * 128 + tid;
+            uint row = vidx / 8; uint col4 = (vidx % 8) * 4;
+            uint gr = block_m_start + row; uint gc = k + col4;
+            if (gr < config.channels && gc < total_k) {
+                f16vec4 v = bufW.kernel[(gr * total_k + gc) / 4];
+                s_A[row * STRIDE_A + col4 + 0] = v.x;
+                s_A[row * STRIDE_A + col4 + 1] = v.y;
+                s_A[row * STRIDE_A + col4 + 2] = v.z;
+                s_A[row * STRIDE_A + col4 + 3] = v.w;
+            }
+        }
+
+        [[unroll]]
+        for (uint i = 0; i < 4; i++) {
+            uint vidx = i * 128 + tid;
+            uint ln = vidx / 8; uint lk4 = (vidx % 8) * 4;
+            uint gn = block_n_start + ln; uint gk = k + lk4;
+            if (gn < num_pixels && gk < total_k) {
+                f16vec4 v = bufS.data[(gn * total_k + gk) / 4];
+                s_B[(lk4 + 0) * STRIDE_B + ln] = v.x;
+                s_B[(lk4 + 1) * STRIDE_B + ln] = v.y;
+                s_B[(lk4 + 2) * STRIDE_B + ln] = v.z;
+                s_B[(lk4 + 3) * STRIDE_B + ln] = v.w;
+            }
+        }
+        barrier();
+
+        coopmat<float16_t, gl_ScopeSubgroup, 16, 16, 0> matA0;
+        coopmat<float16_t, gl_ScopeSubgroup, 16, 16, 0> matA1;
+        coopmat<float16_t, gl_ScopeSubgroup, 16, 16, 1> matB0;
+        coopmat<float16_t, gl_ScopeSubgroup, 16, 16, 1> matB1;
+
+        [[unroll]]
+        for (uint ki = 0; ki < BLOCK_K; ki += 16) {
+            coopMatLoad(matA0, s_A, (warp_m + 0 * 16) * STRIDE_A + ki, STRIDE_A, 0);
+            coopMatLoad(matB0, s_B, ki * STRIDE_B + (warp_n + 0 * 16), STRIDE_B, 0);
+            matC00 = coopMatMulAdd(matA0, matB0, matC00);
+
+            coopMatLoad(matB1, s_B, ki * STRIDE_B + (warp_n + 1 * 16), STRIDE_B, 0);
+            matC01 = coopMatMulAdd(matA0, matB1, matC01);
+
+            coopMatLoad(matA1, s_A, (warp_m + 1 * 16) * STRIDE_A + ki, STRIDE_A, 0);
+            matC10 = coopMatMulAdd(matA1, matB0, matC10);
+            matC11 = coopMatMulAdd(matA1, matB1, matC11);
+        }
+        barrier();
+    }
+
+    uint smem_offset = warp_idx * 256;
+    float sum_sq = 0.0;
+    
+    // --- Block 00 ---
+    coopMatStore(matC00, s_C, smem_offset, 16, 0);
+    [[unroll]]
+    for (uint idx = lane; idx < 256; idx += 32) {
+        uint c = idx / 16; uint r = idx % 16;
+        uint g_m = block_m_start + warp_m + 0 * 16 + r;
+        uint g_n = block_n_start + warp_n + 0 * 16 + c;
+        if (g_m < config.channels && g_n < num_pixels) {
+            bufOut.data[g_n * config.channels + g_m] = float16_t(s_C[smem_offset + idx]);
+        }
+    }
+
+    // --- Block 01 ---
+    coopMatStore(matC01, s_C, smem_offset, 16, 0);
+    [[unroll]]
+    for (uint idx = lane; idx < 256; idx += 32) {
+        uint c = idx / 16; uint r = idx % 16;
+        uint g_m = block_m_start + warp_m + 0 * 16 + r;
+        uint g_n = block_n_start + warp_n + 1 * 16 + c;
+        if (g_m < config.channels && g_n < num_pixels) {
+            bufOut.data[g_n * config.channels + g_m] = float16_t(s_C[smem_offset + idx]);
+        }
+    }
+
+    // --- Block 10 ---
+    coopMatStore(matC10, s_C, smem_offset, 16, 0);
+    [[unroll]]
+    for (uint idx = lane; idx < 256; idx += 32) {
+        uint c = idx / 16; uint r = idx % 16;
+        uint g_m = block_m_start + warp_m + 1 * 16 + r;
+        uint g_n = block_n_start + warp_n + 0 * 16 + c;
+        if (g_m < config.channels && g_n < num_pixels) {
+            bufOut.data[g_n * config.channels + g_m] = float16_t(s_C[smem_offset + idx]);
+        }
+    }
+
+    // --- Block 11 ---
+    coopMatStore(matC11, s_C, smem_offset, 16, 0);
+    [[unroll]]
+    for (uint idx = lane; idx < 256; idx += 32) {
+        uint c = idx / 16; uint r = idx % 16;
+        uint g_m = block_m_start + warp_m + 1 * 16 + r;
+        uint g_n = block_n_start + warp_n + 1 * 16 + c;
+        if (g_m < config.channels && g_n < num_pixels) {
+            bufOut.data[g_n * config.channels + g_m] = float16_t(s_C[smem_offset + idx]);
+        }
+    }
+}
