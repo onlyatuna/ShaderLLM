@@ -1,0 +1,41 @@
+# NCA CHIMERA-V .geminiignore
+# 目的：防止大型或非必要的檔案占用 LLM 上下文空間
+
+# --- 核心大型資源 ---
+weights/
+data/
+*.pt
+*.bin
+*.onnx
+*.safetensors
+
+# --- 編譯與環境 ---
+build/
+bin/
+obj/
+out/
+venv*/
+.venv/
+node_modules/
+*.exe
+*.dll
+*.so
+*.pdb
+*.lib
+*.a
+
+# --- 外部龐大原始碼 (Slang Master) ---
+# 這些檔案數量極多，會稀釋搜尋品質，建議在需要時才手動讀取特定檔案
+skills/slang-master/
+
+# --- 臨時與快取 ---
+.git/
+__pycache__/
+*.log
+temp_slang_research/
+.gemini/
+.claude/
+.vscode/
+
+# --- 備份 ---
+backup/

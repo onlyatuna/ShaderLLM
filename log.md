@@ -1,5 +1,9 @@
 # Wiki 運行日誌 (log.md)
 
+## [2026-04-28] config | 建立 .geminiignore 優化上下文效率
+- **事件**：建立 `.geminiignore` 配置，排除大型二進位檔 (weights)、外部龐大原始碼 (slang-master) 與編譯產物。
+- **目的**：減少上下文噪音，確保 LLM 聚焦於核心邏輯。
+
 ## [2026-04-28] clean | 移除多餘的佔位檔案
 - **事件**：移除 `training/skills/slang-expert/` 目錄下不再需要的範例佔位檔案。
 - **移除清單**：
