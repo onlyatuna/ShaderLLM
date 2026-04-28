@@ -1,5 +1,14 @@
 # Wiki 運行日誌 (log.md)
 
+## [2026-04-28] ingest | ShaderLLM 架構確立與 PLE 系統掛載
+- **事件**：攝入 ShaderLLM 下一階段的深度架構細節與實作指南。
+- **技術提取**：
+    - **Shader 極限最佳化**: `nca_ple_gate.slang` 需引入 Wavefront/Subgroup 層級的協同運算 (Blocked GEMV) 解決暫存器爆滿與記憶體延遲。
+    - **VRAM 佈局 (Host-Visible)**: 針對 5.6GB 的 `pleTable`，優先利用 Resizable BAR (ReBAR/SAM) 實現 CPU 直寫 VRAM (7000 MB/s)。
+    - **時間軸對齊蒸餾 (Layer-wise Distillation)**: 針對 Python 訓練端，必須將 NCA 演化與 Gemma-4 每一層的隱藏狀態進行層級對齊，確保生成文字邏輯與 Gemma-4 同構。
+- **Wiki 更新**：建立 `[[ShaderLLM-PLE-Architecture]]`，更新 `index.md`。
+- **後續行動規劃**：C++ PLE 驗證 -> Shader 空轉測試 -> 神經煉金啟動。
+
 ## [2026-04-28] config | 建立 .geminiignore 優化上下文效率
 - **事件**：建立 `.geminiignore` 配置，排除大型二進位檔 (weights)、外部龐大原始碼 (slang-master) 與編譯產物。
 - **目的**：減少上下文噪音，確保 LLM 聚焦於核心邏輯。
