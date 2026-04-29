@@ -1,5 +1,13 @@
 # Wiki 運行日誌 (log.md)
 
+## [2026-04-28] architecture | 突破 4GB 限制：雙通道 PLE 系統掛載
+- **事件**：偵測到 RTX 5060 Ti 的 `maxStorageBufferRange` 限制為 4GB，成功實作「雙通道路由 (Dual-Channel Routing)」方案以掛載 5.6GB PLE 表。
+- **技術成就**：
+    - **硬體偵測**: 建立 `vulkan_limits_check` 工具，精確定位 VRAM 緩衝區邊界。
+    - **Shader 分流**: 修改 `nca_ple_gate.slang`，實作 0-20 層與 21-41 層的雙緩衝區路由邏輯。
+    - **分塊上傳**: 在 `VulkanEngineOpt` 實作 Chunked Upload (256MB/block)，解決巨型權重載入時的系統 RAM 壓力。
+- **狀態**：ShaderLLM 正式具備 1:1 承載 Gemma-4 42 層深度的物理能力。
+
 ## [2026-04-28] ingest | ShaderLLM 架構確立與 PLE 系統掛載
 - **事件**：攝入 ShaderLLM 下一階段的深度架構細節與實作指南。
 - **技術提取**：

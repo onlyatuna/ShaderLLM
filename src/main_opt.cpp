@@ -87,7 +87,12 @@ int main() {
         size_t weightBytes = 9ULL * (size_t)C * C * sizeof(uint16_t); 
         engine.loadWeights("weights/gemma_nca_weights_3x3.bin", weightBytes);
 
-        std::cout << "[System] Resources Ready. Starting NCA Latent Evolution..." << std::endl;
+        // 🚀 載入 PLE 系統
+        engine.loadPleTable("weights/gemma_ple_table.bin");
+        size_t pleWeightsBytes = 42 * (256 * 2560 + 2560 * 256 + 2560) * sizeof(uint16_t);
+        engine.loadPleWeights("weights/gemma_ple_weights.bin", pleWeightsBytes);
+
+        std::cout << "[System] Resources Ready (PLE Active). Starting NCA Latent Evolution..." << std::endl;
 
         const uint32_t MAX_TOKENS = 12;
         auto start = std::chrono::high_resolution_clock::now();

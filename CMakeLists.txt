@@ -34,6 +34,7 @@ set(SHADER_SOURCES
     src/shaders/nca_spatial_agg.slang
     src/shaders/nca_decode.slang
     src/shaders/nca_inject.slang
+    src/shaders/nca_ple_gate.slang
 )
 
 set(SHADER_SPVS "")
@@ -66,6 +67,7 @@ foreach(SHADER ${SHADER_SOURCES})
             COMMAND ${SLANGC_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/${SHADER} 
                     ${LANG_FLAG}
                     -I ${SLANG_PATH}/bin
+                    -I ${CMAKE_CURRENT_SOURCE_DIR}/src/shaders
                     -target spirv -o ${SPV_OUTPUT}
                     -profile ${PROFILE_STR}
                     -O3
@@ -108,6 +110,7 @@ add_dependencies(chimera_uhd chimera_assets)
 
 add_executable(uhd_inspector src/utils/check_uhd_specs.cpp)
 add_executable(rtx_inspector src/utils/check_rtx_specs.cpp)
+add_executable(vulkan_limits_check src/utils/check_vulkan_limits.cpp)
 add_executable(l0_inspector src/utils/check_l0_specs.cpp)
 add_executable(chimera_l0 src/main_l0.cpp)
 add_dependencies(chimera_l0 chimera_assets)
@@ -115,12 +118,16 @@ add_dependencies(chimera_l0 chimera_assets)
 add_executable(verify_data_flow src/utils/verify_data_flow.cpp)
 add_dependencies(verify_data_flow chimera_assets)
 
+add_executable(verify_ple_table src/utils/verify_ple_table.cpp)
+add_dependencies(verify_ple_table chimera_assets)
+
 # 連結庫
 target_link_libraries(chimera_v_opt PRIVATE CUDA::cudart CUDA::cublas Vulkan::Vulkan)
 target_link_libraries(chimera_tma PRIVATE CUDA::cudart CUDA::cublas Vulkan::Vulkan)
 target_link_libraries(chimera_cuda PRIVATE CUDA::cudart CUDA::cublas)
 target_link_libraries(chimera_uhd PRIVATE CUDA::cudart CUDA::cublas Vulkan::Vulkan)
 target_link_libraries(uhd_inspector PRIVATE Vulkan::Vulkan)
+target_link_libraries(vulkan_limits_check PRIVATE Vulkan::Vulkan)
 target_link_libraries(rtx_inspector PRIVATE CUDA::cudart Vulkan::Vulkan)
 target_include_directories(verify_data_flow PRIVATE src)
 target_link_libraries(verify_data_flow PRIVATE Vulkan::Vulkan)
