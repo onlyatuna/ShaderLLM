@@ -283,13 +283,16 @@ private:
         auto lAgg = pipelineAgg->getDescriptorSetLayout(); auto lEvo = pipelineEvolve->getDescriptorSetLayout();
         auto lRms = pipelineRMSNorm->getDescriptorSetLayout(); auto lDec = pipelineDecode->getDescriptorSetLayout();
         auto lInj = pipelineInject->getDescriptorSetLayout(); auto lPle = pipelinePleGate->getDescriptorSetLayout();
-        VkDescriptorSetLayout layouts[2] = {lAgg, lAgg}; VkDescriptorSetAllocateInfo a{VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO, nullptr, descriptorPool, 2, layouts};
+        
+        VkDescriptorSetLayout layoutsAgg[2] = {lAgg, lAgg};
+        VkDescriptorSetAllocateInfo a{VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO, nullptr, descriptorPool, 2, layoutsAgg};
         vkAllocateDescriptorSets(d, &a, descriptorSetsAgg);
-        a.pSetLayouts = (VkDescriptorSetLayout[]){lEvo, lEvo}; vkAllocateDescriptorSets(d, &a, descriptorSetsEvolve);
-        a.pSetLayouts = (VkDescriptorSetLayout[]){lRms, lRms}; vkAllocateDescriptorSets(d, &a, descriptorSetsRMSNorm);
-        a.pSetLayouts = (VkDescriptorSetLayout[]){lDec, lDec}; vkAllocateDescriptorSets(d, &a, descriptorSetsDecode);
-        a.pSetLayouts = (VkDescriptorSetLayout[]){lInj, lInj}; vkAllocateDescriptorSets(d, &a, descriptorSetsInject);
-        a.pSetLayouts = (VkDescriptorSetLayout[]){lPle, lPle}; vkAllocateDescriptorSets(d, &a, descriptorSetsPleGate);
+
+        VkDescriptorSetLayout layoutsEvo[2] = {lEvo, lEvo}; a.pSetLayouts = layoutsEvo; vkAllocateDescriptorSets(d, &a, descriptorSetsEvolve);
+        VkDescriptorSetLayout layoutsRms[2] = {lRms, lRms}; a.pSetLayouts = layoutsRms; vkAllocateDescriptorSets(d, &a, descriptorSetsRMSNorm);
+        VkDescriptorSetLayout layoutsDec[2] = {lDec, lDec}; a.pSetLayouts = layoutsDec; vkAllocateDescriptorSets(d, &a, descriptorSetsDecode);
+        VkDescriptorSetLayout layoutsInj[2] = {lInj, lInj}; a.pSetLayouts = layoutsInj; vkAllocateDescriptorSets(d, &a, descriptorSetsInject);
+        VkDescriptorSetLayout layoutsPle[2] = {lPle, lPle}; a.pSetLayouts = layoutsPle; vkAllocateDescriptorSets(d, &a, descriptorSetsPleGate);
     }
     void updateDescriptorSets() {
         for (int i = 0; i < 2; i++) {
