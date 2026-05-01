@@ -90,8 +90,9 @@ void main(
             sum += (float)g_val * (float)layerWeights[w_idx];
         }
         
-        // --- 步驟 5: 殘差注入 ---
+        // --- 步驟 5: 殘差注入 (加上 Tanh 避震器) ---
         uint targetIdx = pixelIdx * RETINA_DIM + outDim;
-        retinaState[targetIdx] += half(sum * 0.5f); 
+        float safe_sum = tanh(sum) * 0.5f; // 抑制異常峰值並限制影響力
+        retinaState[targetIdx] += half(safe_sum); 
     }
 }

@@ -100,8 +100,11 @@ def train_real_distill():
             inputs = tokenizer(text, return_tensors="pt").to(device)
             with torch.no_grad():
                 outputs = teacher(**inputs, output_hidden_states=True)
-                teacher_layer_in = outputs.hidden_states[2].detach().clone()
-                teacher_layer_out = outputs.hidden_states[4].detach().clone()
+                # 🌟 核心修正：對齊解碼器數值邊界 (Final Norm)
+                teacher_layer_in = outputs.hidden_states[0].detach().clone()
+                # 獲取最後一層隱藏狀態並手動通過 Final Norm
+                final_hidden = outputs.hidden_states[-1]
+                teacher_layer_out = teacher.model.norm(final_hidden).detach().clone()
                 del outputs
                 torch.cuda.empty_cache()
 

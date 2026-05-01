@@ -65,7 +65,7 @@ void main(uint3 threadId : SV_GroupThreadID)
     float gumbelNoise = -log(-log(u)) * config.temperature;
 
     for (uint i = threadId.x; i < 262144; i += 256) {
-        if (i < 512) continue; // 🚀 提高門檻，避開所有特殊區塊
+        if (i < 1000) continue; // 🚀 提高門檻，屏蔽更多控制字元與 Byte Fallback
 
         // 🚀 核心修正一：矩陣內積 (Dot Product) 避免特徵空間碰撞
         float val = 0.0f;
