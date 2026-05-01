@@ -1,5 +1,13 @@
 # Wiki 運行日誌 (log.md)
 
+## [2026-04-28] fix | 解決神經網路「雪盲症」與「回聲室」
+- **問題診斷**：PLE 注入導致 42 層迭代中數值溢位，且解碼器受到控制字元雜訊干擾。
+- **修復措施**：
+    - **PLE 避震器**: 在 `nca_ple_gate.slang` 注入前加入 `tanh * 0.5` 抑制。
+    - **解碼防火牆**: `nca_decode.slang` 屏蔽門檻提高至 1000 以過濾特殊字元。
+    - **蒸餾對齊**: `distill_gemma_real.py` 改為對齊教師模型經過 `Final Norm` 的特徵。
+- **結果**：Vulkan 引擎在 389 TFLOPS 下運行穩定，數值通道正式對齊解碼就緒狀態。
+
 ## [2026-04-28] architecture | 突破 4GB 限制：雙通道 PLE 系統掛載
 - **事件**：偵測到 RTX 5060 Ti 的 `maxStorageBufferRange` 限制為 4GB，成功實作「雙通道路由 (Dual-Channel Routing)」方案以掛載 5.6GB PLE 表。
 - **技術成就**：
