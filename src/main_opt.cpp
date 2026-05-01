@@ -117,12 +117,14 @@ int main() {
         std::cout << "\n---------------------------------------------------------------" << std::endl;
 
         // --- 效能診斷 ---
-        double ops_per_step = (double)W * H * C * C * 9.0 * 2.0 * 42.0; 
+        // 修正：僅計算中心有效區域的 FLOPs，或以整體生成週期為基準
+        // 核心公式：生成量 / 時間
+        double ops_per_step = (double)C * C * 9.0 * 2.0 * 42.0; // 每個有效細胞的運算量
         double total_tflops_val = (ops_per_step * MAX_TOKENS) / 1e12;
         double throughput = total_tflops_val / diff.count();
 
         std::cout << std::fixed << std::setprecision(2);
-        std::cout << "\n[Stats] Throughput: " << throughput << " TFLOPS | Latency: " << (diff.count()/MAX_TOKENS)*1000 << " ms/tok" << std::endl;
+        std::cout << "\n[Stats] Real Throughput: " << throughput << " TFLOPS | Latency: " << (diff.count()/MAX_TOKENS)*1000 << " ms/tok" << std::endl;
         std::cout << "===============================================================" << std::endl;
 
     } catch (const std::exception& e) {

@@ -90,9 +90,15 @@ void main(
             sum += (float)g_val * (float)layerWeights[w_idx];
         }
         
-        // --- 步驟 5: 殘差注入 (加上 Tanh 避震器) ---
+        // --- 步驟 5: 殘差注入 (加上 Tanh 避震器與 FP16 Clamp 保險絲) ---
         uint targetIdx = pixelIdx * RETINA_DIM + outDim;
-        float safe_sum = tanh(sum) * 0.5f; // 抑制異常峰值並限制影響力
-        retinaState[targetIdx] += half(safe_sum); 
+        float original = f16tof32(retinaState[targetIdx]);
+        float safe_sum = tanh(sum) * 0.5f; 
+        
+        float final_val = original + safe_sum;
+        // 🚀 強制限制在 FP16 安全區間，防止產生 Inf/NaN
+        final_val = clamp(final_val, -65000.0f, 65000.0f);
+        
+        retinaState[targetIdx] = half(final_val); 
     }
 }
