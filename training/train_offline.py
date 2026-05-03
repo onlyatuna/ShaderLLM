@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from torch.utils.checkpoint import checkpoint
 import numpy as np
 import os
 import glob
@@ -88,7 +89,11 @@ class ChimeraNCA_PLE(nn.Module):
     def forward(self, x, prompt_field, ple_stack):
         # ple_stack: [42, 1, 256, 64, 64]
         for i in range(42):
-            x = self.evolve_step(x, prompt_field, ple_stack[i])
+            if self.training:
+                # 🚀 關鍵最佳化：啟用 Gradient Checkpointing
+                x = checkpoint(self.evolve_step, x, prompt_field, ple_stack[i], use_reentrant=False)
+            else:
+                x = self.evolve_step(x, prompt_field, ple_stack[i])
         return x
 
 def get_halo_loss(student_retina, target_feature, tx, ty, current_t, xy_to_d, cos_loss_fn, 
@@ -115,10 +120,11 @@ def train_offline_ple():
     if os.path.exists('weights/gemma_ple_table.bin'):
         print("📂 載入 Gemma-4 全局 PLE 表...")
         ple_table = np.fromfile('weights/gemma_ple_table.bin', dtype=np.float16).reshape(262144, 42, 256)
-        ple_table = torch.from_numpy(ple_table.astype(np.float32)).to(device)
+        # 🚀 關鍵最佳化：把 11GB 的表留在 CPU！
+        ple_table = torch.from_numpy(ple_table.astype(np.float32)) 
     else:
         print("⚠️ 找不到 weights/gemma_ple_table.bin，將使用虛擬 PLE 表訓練。")
-        ple_table = torch.randn(262144, 42, 256, device=device) * 0.01
+        ple_table = torch.randn(262144, 42, 256) * 0.01
 
     d_to_xy, xy_to_d = HilbertTopology.get_luts(64, device)
     offsets = torch.tensor([-1, 0, 1], device=device)
@@ -161,8 +167,9 @@ def train_offline_ple():
                 retina[0, :, ty0, tx0] = in_feat[0, 0]
                 prompt_field[0, :, ty0, tx0] = in_feat[0, 0]
                 # Inject initial PLE signal
-                token_id = input_ids[0]
-                ple_stack[:, 0, :, ty0, tx0] = ple_table[token_id] # [42, 256]
+                token_id = input_ids[0].item() # 轉成 int 取 CPU tensor
+                # 🚀 從 CPU 抽出現有 Token 的 PLE 再丟到 GPU
+                ple_stack[:, 0, :, ty0, tx0] = ple_table[token_id].to(device) 
             
             optimizer.zero_grad()
             chunk_loss = 0.0
@@ -191,9 +198,9 @@ def train_offline_ple():
                     prompt_field = prompt_field.clone()
                     prompt_field[:, :, ty, tx] = in_feat[0, t + 1]
                     # Update PLE stack for the new token
-                    token_id = input_ids[t+1]
+                    token_id = input_ids[t+1].item()
                     ple_stack = ple_stack.clone()
-                    ple_stack[:, 0, :, ty, tx] = ple_table[token_id]
+                    ple_stack[:, 0, :, ty, tx] = ple_table[token_id].to(device)
 
         print(f"Epoch {epoch:02d} | Loss: {total_loss:.4f}")
 
@@ -215,3 +222,4 @@ def train_offline_ple():
 
 if __name__ == "__main__":
     train_offline_ple()
+
