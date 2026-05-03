@@ -1,5 +1,27 @@
 # Wiki 運行日誌 (log.md)
 
+## [2026-04-28] debug | 揭露架構脫節：缺失的 PLE 注入與離線蒸餾抉擇
+- **事件**：針對解碼器輸出隨機單字進行物理對齊診斷。
+- **技術發現**：`distill_gemma_real.py` 未實作 PLE 注入，導致推論時的 42 層 PLE 能量變成破壞性「宇宙輻射」。
+- **戰略轉向**：為避免 5.6GB PLE 表與 42 步演化計算圖造成的 VRAM OOM，決定放棄在線蒸餾，全面轉向 `train_offline.py` 進行絕對同構的離線特徵蒸餾。
+- **Wiki 更新**：建立 `[[ShaderLLM-PLE-Mismatch-Diagnostic]]`。
+
+## [2026-04-28] debug | 定位解碼崩潰：數值吞噬與佈局之謎
+- **事件**：針對 `nca_decode.slang` 輸出亂碼進行深度診斷。
+- **技術發現**：
+    - **數值吞噬**: 內積計算若用 `half` 累加會導致精度喪失，必須改用 `float`。
+    - **佈局校準**: 需確保 Shader 的 Offset 計算與 PyTorch Row-Major 佈局 (262144, 2560) 1:1 對齊。
+- **Wiki 更新**：建立 `[[ShaderLLM-Decode-Collapse-Diagnostic]]`。
+- **修復計畫**：重寫 `nca_decode.slang` 的內積邏輯，引入 FP32 累加器並驗證 Stride。
+
+## [2026-04-28] debug | 揭露物理悖論與 FP16 數值爆炸
+- **事件**：深度診斷 ShaderLLM 的效能統計與亂碼成因。
+- **技術發現**：
+    - **統計膨脹**: 現有 TFLOPS 公式錯誤乘入空間網格數 ($64 \times 64$)，導致數據誇大。
+    - **FP16 溢位**: 42 層殘差疊加缺乏壓制，導致數值超過 65504 產生 `NaN`，引發 `<0x12>` 亂碼。
+- **Wiki 更新**：建立 `[[ShaderLLM-Stability-Diagnostic]]`，更新 `index.md`。
+- **修復計畫**：修正 `main_opt.cpp` 統計公式，並在 `nca_ple_gate.slang` 加入 **FP16 Clamp 保險絲**。
+
 ## [2026-04-28] fix | 解決神經網路「雪盲症」與「回聲室」
 - **問題診斷**：PLE 注入導致 42 層迭代中數值溢位，且解碼器受到控制字元雜訊干擾。
 - **修復措施**：

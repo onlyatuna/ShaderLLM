@@ -6,6 +6,9 @@
 - `[[Gemma-4-llama-cpp-分析]]`: 基於 llama.cpp 源碼的底層技術實作分析 (ISWA, Norms, Multimodal)。
 
 ## 概念 (Concepts)
+- `[[ShaderLLM-PLE-Mismatch-Diagnostic]]`: 架構脫節診斷 (缺失的 PLE 注入, 離線蒸餾抉擇)。
+- `[[ShaderLLM-Decode-Collapse-Diagnostic]]`: 解碼崩潰診斷 (數值吞噬效應, 矩陣佈局錯位)。
+- `[[ShaderLLM-Stability-Diagnostic]]`: 物理悖論與數值穩定性診斷 (TFLOPS 修正, FP16 Overflow 防範)。
 - `[[ShaderLLM-PLE-Architecture]]`: ShaderLLM PLE 架構與極限最佳化指南 (Subgroup Operations, Host-Visible VRAM, Layer-wise Distillation)。
 - `[[Gemma4-PLE-Architecture]]`: Gemma-4 Per-Layer Embeddings (PLE) 架構剖析與 NCA 等效性。
 - `[[CHIMERA-V-技術實作]]`: 2026 效能巔峰指南 (15.52 TFLOPS 里程碑)。
