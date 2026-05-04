@@ -161,8 +161,9 @@ def train_offline_ple():
         
         for data in dataset:
             input_ids = data['input_ids'][0] 
-            in_feat = data['input'].to(device)
-            target_feat = data['target'].to(device)
+            # 🚀 強制轉型為 FP32，匹配神經網路純單精度運算
+            in_feat = data['input'].to(device).float()
+            target_feat = data['target'].to(device).float()
             seq_len = in_feat.shape[1]
 
             retina = torch.zeros(1, CHANNELS, 64, 64, device=device, requires_grad=True)
